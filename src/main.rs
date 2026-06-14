@@ -3,16 +3,10 @@
 use app::Sysmon;
 
 mod app;
-mod barchart;
-mod colorpicker;
 mod config;
 mod i18n;
 mod sensors;
-mod svg_graph;
 mod system_monitors;
-
-#[cfg(feature = "lyon_charts")]
-mod charts;
 
 use chrono::Local;
 use log::info;

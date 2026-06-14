@@ -3,7 +3,6 @@ use cosmic::applet::{PanelType, Size};
 use cosmic::config::FontConfig;
 use cosmic::cosmic_config::CosmicConfigEntry;
 use cosmic::cosmic_theme::palette::bool_mask::BoolMask;
-use cosmic::cosmic_theme::palette::{FromColor, WithAlpha};
 use cosmic::iced::advanced::graphics::text::cosmic_text::{Buffer, FontSystem, Metrics, Shaping};
 use cosmic::iced::alignment::Horizontal::{self};
 use cosmic::iced::core::text::Wrapping;
@@ -38,11 +37,8 @@ use zvariant::OwnedObjectPath;
 
 use log::{error, info};
 
-use crate::barchart::StackedBarSvg;
-use crate::colorpicker::ColorPicker;
 use crate::config::{
-    ChartColors, ChartKind, ColorVariant, ContentType, DeviceKind, DisksVariant, GpuConfig,
-    NetworkVariant,
+    ContentType, DeviceKind, DisksVariant, GpuConfig, NetworkVariant,
 };
 use crate::sensors::cpu::Cpu;
 use crate::sensors::cputemp::CpuTemp;
@@ -62,12 +58,6 @@ const NVIDIA_REDETECT_ATTEMPTS: u8 = 5;
 static AUTOSIZE_MAIN_ID: LazyLock<WId> = std::sync::LazyLock::new(|| WId::new("autosize-main"));
 
 const ICON: &str = "io.github.cosmic_utils.sysmon-applet";
-const CPU_ICON: &str = "io.github.cosmic_utils.sysmon-applet-cpu";
-const TEMP_ICON: &str = "io.github.cosmic_utils.sysmon-applet-temperature";
-const RAM_ICON: &str = "io.github.cosmic_utils.sysmon-applet-ram";
-const GPU_ICON: &str = "io.github.cosmic_utils.sysmon-applet-gpu";
-const NETWORK_ICON: &str = "io.github.cosmic_utils.sysmon-applet-network";
-const DISK_ICON: &str = "io.github.cosmic_utils.sysmon-applet-harddisk";
 
 const DEFAULT_MONITOR: &str = "COSMIC System Monitor";
 
@@ -130,7 +120,12 @@ macro_rules! disks_select {
 
 macro_rules! settings_sub_page_heading {
     ($heading:ident) => {
-        Sysmon::sub_page_header(Some(&$heading), &SETTINGS_BACK, Message::Settings(None))
+        Sysmon::sub_page_header(
+            Some($heading.to_string()),
+            None,
+            &SETTINGS_BACK,
+            Message::Settings(None),
+        )
     };
 }
 
@@ -166,9 +161,6 @@ pub struct Sysmon {
 
     /// Current settings sub page
     settings_page: Option<SettingsVariant>,
-
-    /// The color picker dialog
-    colorpicker: ColorPicker,
 
     /// Settings stored on disk, including refresh rate, colors, etc.
     config: SysmonConfig,
@@ -206,80 +198,42 @@ pub struct ContentOrderChange {
 pub enum Message {
     TogglePopup,
 
-    ColorPickerOpen(DeviceKind, ChartKind, Option<String>),
-    ColorPickerClose(bool, Option<String>),
-    ColorPickerDefaults,
-    ColorPickerAccent,
-
-    ColorPickerSliderRedChanged(u8),
-    ColorPickerSliderGreenChanged(u8),
-    ColorPickerSliderBlueChanged(u8),
-    ColorPickerSliderAlphaChanged(u8),
-    ColorPickerSelectVariant(ColorVariant),
-
-    ColorTextInputRedChanged(String),
-    ColorTextInputGreenChanged(String),
-    ColorTextInputBlueChanged(String),
-    ColorTextInputAlphaChanged(String),
-
     ToggleNetBytes(bool),
     ToggleNetCombined(bool),
-    ToggleNetChart(NetworkVariant, bool),
     ToggleNetValue(NetworkVariant, bool),
-    ToggleNetLabel(NetworkVariant, bool),
-    ToggleNetIcon(NetworkVariant, bool),
-    ToggleAdaptiveNet(NetworkVariant, bool),
-    NetworkSelectUnit(NetworkVariant, usize),
-    TextInputBandwidthChanged(NetworkVariant, String),
 
     ToggleDisksCombined(bool),
-    ToggleDisksChart(DisksVariant, bool),
     ToggleDisksValue(DisksVariant, bool),
-    ToggleDisksLabel(DisksVariant, bool),
-    ToggleDisksIcon(DisksVariant, bool),
 
-    SelectGraphType(DeviceKind, ChartKind),
     Tick,
     SlowTimer,
     PopupClosed(Id),
 
-    ToggleCpuChart(bool),
     ToggleCpuValue(bool),
     ToggleCpuLabel(bool),
-    ToggleCpuIcon(bool),
-    ToggleCpuTempChart(bool),
     ToggleCpuTempValue(bool),
     ToggleCpuTempLabel(bool),
-    ToggleCpuTempIcon(bool),
     ToggleCpuNoDecimals(bool),
-    CpuBarSizeChanged(u16),
-    CpuNarrowBarSpacing(bool),
-    ToggleMemoryChart(bool),
     ToggleMemoryValue(bool),
     ToggleMemoryLabel(bool),
-    ToggleMemoryIcon(bool),
     ToggleMemoryPercentage(bool),
-    ToggleMemoryAllocated(bool),
     ConfigChanged(Box<SysmonConfig>),
     ThemeChanged(Box<cosmic::config::CosmicTk>),
     LaunchSystemMonitor(&'static system_monitors::DesktopApp),
     RefreshRateChanged(f64),
     ValueSizeChanged(u16),
+    LabelSizeChanged(u16),
+    CombinedValueSizeChanged(u16),
     ToggleMonospaceValues(bool),
     PanelSpacing(u16),
     SelectCpuTempUnit(TempUnit),
-    CpuTempMinTempChanged(f64),
 
     Settings(Option<SettingsVariant>),
 
-    GpuToggleChart(String, DeviceKind, bool),
     GpuToggleValue(String, DeviceKind, bool),
     GpuToggleLabel(String, bool),
-    GpuToggleIcon(String, bool),
     GpuToggleStackValues(String, bool),
-    GpuSelectGraphType(String, DeviceKind, ChartKind),
     SelectGpuTempUnit(String, TempUnit),
-    GpuTempMinTempChanged(String, f64),
     ToggleDisableOnBattery(String, bool),
     SysmonSelect(usize),
 
@@ -326,7 +280,6 @@ impl cosmic::Application for Sysmon {
             nvidia_redetect_attempts: 0,
             popup: None,
             settings_page: None,
-            colorpicker: ColorPicker::default(),
             config: SysmonConfig::default(),
             refresh_rate: Arc::new(AtomicU32::new(1000)),
             is_laptop,
@@ -515,128 +468,139 @@ impl cosmic::Application for Sysmon {
                 }
             }
         }
-        // Colorpicker
-        if self.colorpicker.active() {
-            let limits = Limits::NONE
-                .max_width(400.0)
-                .min_width(400.0)
-                .min_height(200.0)
-                .max_height(750.0);
+        let theme = cosmic::theme::active();
 
-            self.core
-                .applet
-                .popup_container(self.colorpicker.view_colorpicker())
-                .limits(limits)
-                .into()
-
-        // Individual settingspage
+        let padding = if self.core.is_condensed() {
+            theme.cosmic().space_s()
         } else {
-            let theme = cosmic::theme::active();
+            theme.cosmic().space_l()
+        };
 
-            let padding = if self.core.is_condensed() {
-                theme.cosmic().space_s()
-            } else {
-                theme.cosmic().space_l()
-            };
+        let mut content = Column::new();
 
-            let mut content = Column::new();
-
-            if let Some(variant) = &self.settings_page {
-                match variant {
-                    SettingsVariant::Cpu => {
-                        content = content.push(settings_sub_page_heading!(SETTINGS_CPU_HEADING));
-                        content = content.push(self.cpu.settings_ui());
-                    }
-                    SettingsVariant::CpuTemp => {
-                        content =
-                            content.push(settings_sub_page_heading!(SETTINGS_CPU_TEMP_HEADING));
-                        content = content.push(self.cputemp.settings_ui());
-                    }
-                    SettingsVariant::Memory => {
-                        content = content.push(Sysmon::sub_page_header(
-                            Some(&SETTINGS_MEMORY_HEADING),
-                            &SETTINGS_BACK,
-                            Message::Settings(None),
-                        ));
-                        content = content.push(self.memory.settings_ui());
-                    }
-                    SettingsVariant::Network => {
-                        let net_variant = self.config.network1.variant;
-                        content =
-                            content.push(settings_sub_page_heading!(SETTINGS_NETWORK_HEADING));
-                        content = content.push(settings::item(
-                            fl!("enable-net-combined"),
-                            widget::toggler(net_variant == NetworkVariant::Combined)
-                                .on_toggle(Message::ToggleNetCombined),
-                        ));
-                        content = content.push(settings::item(
-                            fl!("net-use-bytes"),
-                            widget::toggler(self.config.network1.show_bytes)
-                                .on_toggle(Message::ToggleNetBytes),
-                        ));
-                        content = content.push(settings::item(
-                            fl!("enable-label"),
-                            widget::toggler(self.config.network1.label_visible())
-                                .on_toggle(move |t| Message::ToggleNetLabel(net_variant, t)),
-                        ));
-                        content = content.push(settings::item(
-                            fl!("enable-icon"),
-                            widget::toggler(self.config.network1.icon_visible())
-                                .on_toggle(move |t| Message::ToggleNetIcon(net_variant, t)),
-                        ));
-                        content = content.push(self.network1.settings_ui());
-                        if net_variant == NetworkVariant::Download {
-                            content = content.push(self.network2.settings_ui());
-                        }
-                    }
-                    SettingsVariant::Disks => {
-                        let disks_variant = self.config.disks1.variant;
-                        content = content.push(settings_sub_page_heading!(SETTINGS_DISKS_HEADING));
-                        content = content.push(settings::item(
-                            fl!("enable-disks-combined"),
-                            widget::toggler(disks_variant == DisksVariant::Combined)
-                                .on_toggle(Message::ToggleDisksCombined),
-                        ));
-                        content = content.push(settings::item(
-                            fl!("enable-label"),
-                            widget::toggler(self.config.disks1.label_visible())
-                                .on_toggle(move |t| Message::ToggleDisksLabel(disks_variant, t)),
-                        ));
-                        content = content.push(settings::item(
-                            fl!("enable-icon"),
-                            widget::toggler(self.config.disks1.icon_visible())
-                                .on_toggle(move |t| Message::ToggleDisksIcon(disks_variant, t)),
-                        ));
-                        content = content.push(self.disks1.settings_ui());
-                        if disks_variant == DisksVariant::Write {
-                            content = content.push(self.disks2.settings_ui());
-                        }
-                    }
-                    SettingsVariant::Gpu(id) => {
-                        content = content.push(settings_sub_page_heading!(SETTINGS_GPU_HEADING));
-
-                        if let (Some(gpu), Some(config)) =
-                            (self.gpus.get(id), self.config.gpus.get(id))
-                        {
-                            content = content.push(
-                                widget::row::with_capacity(2)
-                                    .push(text::heading(gpu.name()))
-                                    .spacing(cosmic::theme::spacing().space_m),
-                            );
-                            content = content.push(gpu.settings_ui(config));
-                        } else {
-                            error!("SettingsVariant::Gpu: Not found {id}");
-                        }
-                    }
-                    SettingsVariant::General => {
-                        content =
-                            content.push(settings_sub_page_heading!(SETTINGS_GENERAL_HEADING));
-                        content = content.push(self.general_settings_ui());
+        if let Some(variant) = &self.settings_page {
+            match variant {
+                SettingsVariant::Cpu => {
+                    let title = format!("{} — {}", &**SETTINGS_CPU_HEADING, self.cpu);
+                    content = content.push(Sysmon::sub_page_header(
+                        Some(title),
+                        None,
+                        &SETTINGS_BACK,
+                        Message::Settings(None),
+                    ));
+                    content = content.push(self.cpu.settings_ui());
+                }
+                SettingsVariant::CpuTemp => {
+                    let title = format!(
+                        "{} — {}",
+                        &**SETTINGS_CPU_TEMP_HEADING, self.cputemp
+                    );
+                    content = content.push(Sysmon::sub_page_header(
+                        Some(title),
+                        None,
+                        &SETTINGS_BACK,
+                        Message::Settings(None),
+                    ));
+                    content = content.push(self.cputemp.settings_ui());
+                }
+                SettingsVariant::Memory => {
+                    let title = format!(
+                        "{} — {}",
+                        &**SETTINGS_MEMORY_HEADING,
+                        self.memory.to_string(false)
+                    );
+                    content = content.push(Sysmon::sub_page_header(
+                        Some(title),
+                        None,
+                        &SETTINGS_BACK,
+                        Message::Settings(None),
+                    ));
+                    content = content.push(self.memory.settings_ui());
+                }
+                SettingsVariant::Network => {
+                    let net_variant = self.config.network1.variant;
+                    let dl = self.network1.download_label(
+                        self.config.refresh_rate,
+                        crate::sensors::network::UnitVariant::Long,
+                    );
+                    let ul = self.network1.upload_label(
+                        self.config.refresh_rate,
+                        crate::sensors::network::UnitVariant::Long,
+                    );
+                    let subtitle = format!("↓ {dl}  ·  ↑ {ul}");
+                    content = content.push(Sysmon::sub_page_header(
+                        Some(SETTINGS_NETWORK_HEADING.to_string()),
+                        Some(subtitle),
+                        &SETTINGS_BACK,
+                        Message::Settings(None),
+                    ));
+                    content = content.push(settings::item(
+                        fl!("enable-net-combined"),
+                        widget::toggler(net_variant == NetworkVariant::Combined)
+                            .on_toggle(Message::ToggleNetCombined),
+                    ));
+                    content = content.push(settings::item(
+                        fl!("net-use-bytes"),
+                        widget::toggler(self.config.network1.show_bytes)
+                            .on_toggle(Message::ToggleNetBytes),
+                    ));
+                    content = content.push(self.network1.settings_ui());
+                    if net_variant == NetworkVariant::Download {
+                        content = content.push(self.network2.settings_ui());
                     }
                 }
+                SettingsVariant::Disks => {
+                    let disks_variant = self.config.disks1.variant;
+                    let wr = self.disks1.write_label(
+                        self.config.refresh_rate,
+                        crate::sensors::disks::UnitVariant::Long,
+                    );
+                    let rd = self.disks1.read_label(
+                        self.config.refresh_rate,
+                        crate::sensors::disks::UnitVariant::Long,
+                    );
+                    let subtitle = format!("r {wr}  ·  w {rd}");
+                    content = content.push(Sysmon::sub_page_header(
+                        Some(SETTINGS_DISKS_HEADING.to_string()),
+                        Some(subtitle),
+                        &SETTINGS_BACK,
+                        Message::Settings(None),
+                    ));
+                    content = content.push(settings::item(
+                        fl!("enable-disks-combined"),
+                        widget::toggler(disks_variant == DisksVariant::Combined)
+                            .on_toggle(Message::ToggleDisksCombined),
+                    ));
+                    content = content.push(self.disks1.settings_ui());
+                    if disks_variant == DisksVariant::Write {
+                        content = content.push(self.disks2.settings_ui());
+                    }
+                }
+                SettingsVariant::Gpu(id) => {
+                    content = content.push(settings_sub_page_heading!(SETTINGS_GPU_HEADING));
 
-            // List settings overview
-            } else {
+                    if let (Some(gpu), Some(config)) =
+                        (self.gpus.get(id), self.config.gpus.get(id))
+                    {
+                        content = content.push(
+                            widget::row::with_capacity(2)
+                                .push(text::heading(gpu.name()))
+                                .spacing(cosmic::theme::spacing().space_m),
+                        );
+                        content = content.push(gpu.settings_ui(config));
+                    } else {
+                        error!("SettingsVariant::Gpu: Not found {id}");
+                    }
+                }
+                SettingsVariant::General => {
+                    content =
+                        content.push(settings_sub_page_heading!(SETTINGS_GENERAL_HEADING));
+                    content = content.push(self.general_settings_ui());
+                }
+            }
+
+        // List settings overview
+        } else {
                 if let Some(sysmon) = get_sysmon(&self.config.sysmon) {
                     content = content.push(Element::from(row!(
                         widget::space::horizontal(),
@@ -734,7 +698,7 @@ impl cosmic::Application for Sysmon {
                     }
                 }
 
-                content = content.push(sensor_settings);
+                    content = content.push(sensor_settings);
             }
 
             content = content.padding(padding).spacing(padding);
@@ -751,7 +715,6 @@ impl cosmic::Application for Sysmon {
                 .popup_container(content.apply(cosmic::widget::scrollable))
                 .limits(limits)
                 .into()
-        }
     }
 
     /// Application messages are handled here. The application state can be modified based on
@@ -772,7 +735,6 @@ impl cosmic::Application for Sysmon {
             Message::TogglePopup => {
                 info!("Message::TogglePopup");
                 if let Some(p) = self.popup.take() {
-                    self.colorpicker.deactivate();
                     // but have to go back to sleep if settings closed
                     self.maybe_stop_gpus();
                     return destroy_popup(p);
@@ -793,100 +755,9 @@ impl cosmic::Application for Sysmon {
             }
             Message::PopupClosed(id) => {
                 if self.popup.as_ref() == Some(&id) {
-                    self.colorpicker.deactivate();
                     self.popup = None;
                 }
             }
-            Message::ColorPickerOpen(device, kind, id) => {
-                // colorpicker is only activated when the settings popup is already open
-                // so it takes it over
-                info!("Message::ColorPickerOpen({kind:?}, {id:?})");
-                match device {
-                    DeviceKind::Cpu => {
-                        self.colorpicker.activate(device, self.cpu.demo_graph());
-                    }
-                    DeviceKind::CpuTemp => {
-                        self.colorpicker.activate(device, self.cputemp.demo_graph());
-                    }
-                    DeviceKind::Memory => {
-                        self.colorpicker.activate(device, self.memory.demo_graph());
-                    }
-                    DeviceKind::Network(variant) => {
-                        let (network, _config) = network_select!(self, variant);
-                        self.colorpicker.activate(device, network.demo_graph());
-                    }
-                    DeviceKind::Disks(variant) => {
-                        let (disks, _) = disks_select!(self, variant);
-                        self.colorpicker.activate(device, disks.demo_graph());
-                    }
-                    DeviceKind::Gpu | DeviceKind::Vram | DeviceKind::GpuTemp => {
-                        if let Some(id) = id {
-                            if let Some(gpu) = self.gpus.get(&id) {
-                                self.colorpicker.activate(device, gpu.demo_graph(device));
-                            } else {
-                                error!("no config for selected GPU {id}");
-                            }
-                        } else {
-                            error!("Id is None");
-                        }
-                    }
-                }
-                self.colorpicker.set_color_variant(ColorVariant::Background);
-            }
-
-            Message::ColorPickerClose(save, maybe_gpu_id) => {
-                info!("Message::ColorPickerClose({save},{maybe_gpu_id:?})");
-                if save {
-                    let cols = *self.colorpicker.colors();
-                    self.save_colors(&cols, self.colorpicker.device(), maybe_gpu_id);
-                    self.save_config();
-                }
-                self.colorpicker.deactivate();
-            }
-
-            Message::ColorPickerDefaults => {
-                info!("Message::ColorPickerDefaults()");
-                self.colorpicker.default_colors();
-            }
-
-            Message::ColorPickerAccent => {
-                info!("Message::ColorPickerAccent()");
-                if let Some(theme) = self.core.applet.theme() {
-                    let srgba = cosmic::cosmic_theme::palette::Srgba::from_color(
-                        theme.cosmic().accent_color().color,
-                    );
-                    self.colorpicker.update_color(srgba.opaque().into());
-                }
-            }
-
-            Message::ColorPickerSliderRedChanged(val) => {
-                let mut col = self.colorpicker.sliders();
-                col.red = val;
-                self.colorpicker.update_color(col);
-            }
-
-            Message::ColorPickerSliderGreenChanged(val) => {
-                let mut col = self.colorpicker.sliders();
-                col.green = val;
-                self.colorpicker.update_color(col);
-            }
-
-            Message::ColorPickerSliderBlueChanged(val) => {
-                let mut col = self.colorpicker.sliders();
-                col.blue = val;
-                self.colorpicker.update_color(col);
-            }
-
-            Message::ColorPickerSliderAlphaChanged(val) => {
-                let mut col = self.colorpicker.sliders();
-                col.alpha = val;
-                self.colorpicker.update_color(col);
-            }
-
-            Message::ColorPickerSelectVariant(variant) => {
-                self.colorpicker.set_color_variant(variant);
-            }
-
             Message::ToggleNetBytes(toggle) => {
                 info!("Message::ToggleNetBytes({toggle})");
                 self.config.network1.show_bytes = toggle;
@@ -916,78 +787,11 @@ impl cosmic::Application for Sysmon {
                 self.save_config();
             }
 
-            Message::ToggleDisksChart(variant, toggled) => {
-                info!("Message::ToggleDiskChart({variant:?})");
-                let (_, config) = disks_select!(self, variant);
-                config.show_chart(toggled);
-                self.save_config();
-            }
-
             Message::ToggleDisksValue(variant, toggled) => {
                 info!("Message::ToggleDiskLabel({variant:?})");
-                let (_, config) = disks_select!(self, variant);
+                let (sensor, config) = disks_select!(self, variant);
                 config.show_value(toggled);
-                self.save_config();
-            }
-
-            Message::ToggleDisksLabel(variant, toggled) => {
-                info!("Message::ToggleDisksLabel({variant:?})");
-                let (_, config) = disks_select!(self, variant);
-                config.show_label(toggled);
-                self.save_config();
-            }
-
-            Message::ToggleDisksIcon(variant, toggled) => {
-                info!("Message::ToggleDisksIcon({variant:?})");
-                let (_, config) = disks_select!(self, variant);
-                config.show_icon(toggled);
-                self.save_config();
-            }
-
-            Message::ToggleAdaptiveNet(variant, toggle) => {
-                info!("Message::ToggleAdaptiveNet({variant:?}, {toggle:?})");
-                let (_network, config) = network_select!(self, variant);
-                config.adaptive = toggle;
-                self.save_config();
-            }
-
-            Message::NetworkSelectUnit(variant, unit) => {
-                let (_, config) = network_select!(self, variant);
-                config.unit = Some(unit);
-                self.save_config();
-            }
-
-            Message::SelectGraphType(dev, kind) => {
-                info!("Message::SelectGraphType({dev:?})");
-                match dev {
-                    DeviceKind::Cpu => {
-                        self.cpu.set_graph_kind(kind);
-                        self.config.cpu.chart = kind;
-                    }
-                    DeviceKind::CpuTemp => {
-                        self.cputemp.set_graph_kind(kind);
-                        self.config.cputemp.chart = kind;
-                    }
-                    DeviceKind::Memory => {
-                        self.memory.set_graph_kind(kind);
-                        self.config.memory.chart = kind;
-                    }
-                    _ => error!("Message::SelectGraphType unsupported kind/device combination."), // Disks and Network don't have graph selection
-                }
-                self.save_config();
-            }
-
-            Message::TextInputBandwidthChanged(variant, string) => {
-                let value = if string.is_empty() {
-                    Some(0)
-                } else {
-                    string.parse::<u64>().ok()
-                };
-
-                if let Some(val) = value {
-                    let (_, config) = network_select!(self, variant);
-                    config.bandwidth = val;
-                }
+                sensor.update_config(&*config, self.config.refresh_rate);
                 self.save_config();
             }
 
@@ -1018,185 +822,80 @@ impl cosmic::Application for Sysmon {
                 }
             }
 
-            Message::ToggleCpuChart(toggled) => {
-                info!("Message::ToggleCpuChart({toggled:?})");
-                self.config.cpu.show_chart(toggled);
-                self.save_config();
-            }
-
-            Message::ToggleCpuTempChart(toggled) => {
-                info!("Message::ToggleCpuTempChart({toggled:?})");
-                self.config.cputemp.show_chart(toggled);
-                self.save_config();
-            }
-
             Message::ToggleCpuNoDecimals(toggle) => {
                 info!("Message::ToggleCpuNoDecimals({toggle:?})");
                 self.config.cpu.no_decimals = toggle;
+                self.cpu.update_config(&self.config.cpu, self.config.refresh_rate);
                 self.save_config();
             }
 
             Message::SelectCpuTempUnit(unit) => {
                 info!("Message::SelectCpuTempUnit({unit:?})");
                 self.config.cputemp.unit = unit;
-                self.save_config();
-            }
-
-            Message::CpuTempMinTempChanged(temp) => {
-                info!("Message::CpuTempMinTempChanged({temp})");
-                if temp >= 0.0 && temp < 100.0 {
-                    self.config.cputemp.min_temp = temp;
-                    self.save_config();
-                }
-            }
-
-            Message::CpuBarSizeChanged(width) => {
-                info!("Message::CpuBarSizeChanged({width})");
-                self.config.cpu.bar_width = width;
-                self.save_config();
-            }
-
-            Message::CpuNarrowBarSpacing(enable) => {
-                if enable {
-                    self.config.cpu.bar_spacing = 0;
-                } else {
-                    self.config.cpu.bar_spacing = 1;
-                }
-                self.save_config();
-            }
-
-            Message::ToggleMemoryChart(toggled) => {
-                info!("Message::ToggleMemoryChart({toggled:?})");
-                self.config.memory.show_chart(toggled);
-                self.save_config();
-            }
-
-            Message::ToggleNetChart(variant, toggled) => {
-                info!("Message::ToggleNetChart({toggled:?})");
-                let (_, config) = network_select!(self, variant);
-                config.show_chart(toggled);
+                self.cputemp.update_config(&self.config.cputemp, self.config.refresh_rate);
                 self.save_config();
             }
 
             Message::ToggleCpuValue(toggled) => {
                 info!("Message::ToggleCpuValue({toggled:?})");
                 self.config.cpu.show_value(toggled);
+                self.cpu.update_config(&self.config.cpu, self.config.refresh_rate);
                 self.save_config();
             }
 
             Message::ToggleCpuLabel(toggled) => {
                 info!("Message::ToggleCpuLabel({toggled:?})");
                 self.config.cpu.show_label(toggled);
-                self.save_config();
-            }
-
-            Message::ToggleCpuIcon(toggled) => {
-                info!("Message::ToggleCpuIcon({toggled:?})");
-                self.config.cpu.show_icon(toggled);
+                self.cpu.update_config(&self.config.cpu, self.config.refresh_rate);
                 self.save_config();
             }
 
             Message::ToggleCpuTempValue(toggled) => {
                 info!("Message::ToggleCpuTempValue({toggled:?})");
                 self.config.cputemp.show_value(toggled);
+                self.cputemp.update_config(&self.config.cputemp, self.config.refresh_rate);
                 self.save_config();
             }
 
             Message::ToggleCpuTempLabel(toggled) => {
                 info!("Message::ToggleCpuTempLabel({toggled:?})");
                 self.config.cputemp.show_label(toggled);
-                self.save_config();
-            }
-
-            Message::ToggleCpuTempIcon(toggled) => {
-                info!("Message::ToggleCpuTempIcon({toggled:?})");
-                self.config.cputemp.show_icon(toggled);
+                self.cputemp.update_config(&self.config.cputemp, self.config.refresh_rate);
                 self.save_config();
             }
 
             Message::ToggleMemoryValue(toggled) => {
                 info!("Message::ToggleMemoryValue({toggled:?})");
                 self.config.memory.show_value(toggled);
+                self.memory.update_config(&self.config.memory, self.config.refresh_rate);
                 self.save_config();
             }
 
             Message::ToggleMemoryLabel(toggled) => {
                 info!("Message::ToggleMemoryLabel({toggled:?})");
                 self.config.memory.show_label(toggled);
-                self.save_config();
-            }
-
-            Message::ToggleMemoryIcon(toggled) => {
-                info!("Message::ToggleMemoryIcon({toggled:?})");
-                self.config.memory.show_icon(toggled);
+                self.memory.update_config(&self.config.memory, self.config.refresh_rate);
                 self.save_config();
             }
 
             Message::ToggleMemoryPercentage(toggled) => {
                 info!("Message::ToggleMemoryPercentage({toggled:?})");
                 self.config.memory.percentage = toggled;
-                self.save_config();
-            }
-
-            Message::ToggleMemoryAllocated(toggled) => {
-                info!("Message::ToggleMemoryAllocated({toggled:?})");
-                self.config.memory.show_allocated = toggled;
+                self.memory.update_config(&self.config.memory, self.config.refresh_rate);
                 self.save_config();
             }
 
             Message::ToggleNetValue(variant, toggled) => {
                 info!("Message::ToggleNetValue({toggled:?})");
-                let (_, config) = network_select!(self, variant);
+                let (sensor, config) = network_select!(self, variant);
                 config.show_value(toggled);
-                self.save_config();
-            }
-
-            Message::ToggleNetLabel(variant, toggled) => {
-                info!("Message::ToggleNetLabel({toggled:?})");
-                let (_, config) = network_select!(self, variant);
-                config.show_label(toggled);
-                self.save_config();
-            }
-
-            Message::ToggleNetIcon(variant, toggled) => {
-                info!("Message::ToggleNetIcon({toggled:?})");
-                let (_, config) = network_select!(self, variant);
-                config.show_icon(toggled);
+                sensor.update_config(&*config, self.config.refresh_rate);
                 self.save_config();
             }
 
             Message::ConfigChanged(config) => {
                 info!("Message::ConfigChanged()");
                 self.config_changed(&config);
-            }
-
-            Message::ColorTextInputRedChanged(value) => {
-                let mut col = self.colorpicker.sliders();
-                Sysmon::set_color(&value, &mut col.red);
-                self.colorpicker.update_color(col);
-            }
-
-            Message::ColorTextInputGreenChanged(value) => {
-                let mut col = self.colorpicker.sliders();
-                Sysmon::set_color(&value, &mut col.green);
-                self.colorpicker.update_color(col);
-            }
-
-            Message::ColorTextInputBlueChanged(value) => {
-                let mut col = self.colorpicker.sliders();
-                Sysmon::set_color(&value, &mut col.blue);
-                self.colorpicker.update_color(col);
-            }
-
-            Message::ColorTextInputAlphaChanged(value) => {
-                let mut col = self.colorpicker.sliders();
-                Sysmon::set_color(&value, &mut col.alpha);
-                self.colorpicker.update_color(col);
-            }
-
-            Message::LaunchSystemMonitor(desktop_app) => {
-                info!("Message::LaunchSystemMonitor() {}", desktop_app.name);
-                system_monitors::launch_desktop_app(desktop_app);
             }
 
             Message::RefreshRateChanged(rate) => {
@@ -1208,6 +907,18 @@ impl cosmic::Application for Sysmon {
             Message::ValueSizeChanged(size) => {
                 info!("Message::ValueSizeChanged({size:?})");
                 self.config.value_size_default = size;
+                self.save_config();
+            }
+
+            Message::LabelSizeChanged(size) => {
+                info!("Message::LabelSizeChanged({size:?})");
+                self.config.label_size_default = size;
+                self.save_config();
+            }
+
+            Message::CombinedValueSizeChanged(size) => {
+                info!("Message::CombinedValueSizeChanged({size:?})");
+                self.config.combined_value_size_default = size;
                 self.save_config();
             }
 
@@ -1233,32 +944,23 @@ impl cosmic::Application for Sysmon {
                 self.config.sysmon = name;
                 self.save_config();
             }
-            Message::GpuToggleChart(id, device, toggled) => {
-                self.update_gpu_config(
-                    &id,
-                    "GpuToggleChart",
-                    device,
-                    |config, device| match device {
-                        DeviceKind::Gpu => config.usage.show_chart(toggled),
-                        DeviceKind::Vram => config.vram.show_chart(toggled),
-                        DeviceKind::GpuTemp => config.temp.show_chart(toggled),
-                        _ => error!("GpuToggleChart: wrong kind {device:?}"),
-                    },
-                );
-            }
-
             Message::GpuToggleValue(id, device, toggled) => {
                 self.update_gpu_config(
                     &id,
-                    "GpuToggleLabel",
+                    "GpuToggleValue",
                     device,
                     |config, device| match device {
                         DeviceKind::Gpu => config.usage.show_value(toggled),
                         DeviceKind::Vram => config.vram.show_value(toggled),
                         DeviceKind::GpuTemp => config.temp.show_value(toggled),
-                        _ => error!("GpuToggleLabel: wrong kind {device:?}"),
+                        _ => error!("GpuToggleValue: wrong kind {device:?}"),
                     },
                 );
+                if let Some(gpu) = self.gpus.get_mut(&id) {
+                    if let Some(config) = self.config.gpus.get(&id) {
+                        gpu.update_config(config, self.config.refresh_rate);
+                    }
+                }
             }
 
             Message::GpuToggleLabel(id, toggled) => {
@@ -1266,40 +968,23 @@ impl cosmic::Application for Sysmon {
                 if let Some(c) = self.config.gpus.get_mut(&id) {
                     c.usage.show_label(toggled);
                     self.save_config();
-                } else {
-                    error!("GpuToggleLabel: wrong id {id:?}");
                 }
-            }
-
-            Message::GpuToggleIcon(id, toggled) => {
-                info!("Message::GpuToggleIcon({id:?}, {toggled:?})");
-                if let Some(c) = self.config.gpus.get_mut(&id) {
-                    c.usage.show_icon(toggled);
-                    self.save_config();
-                } else {
-                    error!("GpuToggleIcon: wrong id {id:?}");
+                if let Some(gpu) = self.gpus.get_mut(&id) {
+                    if let Some(config) = self.config.gpus.get(&id) {
+                        gpu.update_config(config, self.config.refresh_rate);
+                    }
                 }
             }
 
             Message::SelectGpuTempUnit(id, unit) => {
-                info!("Message::SelectCpuTempUnit({unit:?})");
+                info!("Message::SelectGpuTempUnit({unit:?})");
                 if let Some(c) = self.config.gpus.get_mut(&id) {
                     c.temp.unit = unit;
                     self.save_config();
-                } else {
-                    error!("GpuToggleStackLabels: wrong id {id:?}");
                 }
-                self.save_config();
-            }
-
-            Message::GpuTempMinTempChanged(id, temp) => {
-                info!("Message::GpuTempMinTempChanged({id:?}, {temp})");
-                if temp >= 0.0 && temp < 100.0 {
-                    if let Some(c) = self.config.gpus.get_mut(&id) {
-                        c.temp.min_temp = temp;
-                        self.save_config();
-                    } else {
-                        error!("GpuTempMinTempChanged: wrong id {id:?}");
+                if let Some(gpu) = self.gpus.get_mut(&id) {
+                    if let Some(config) = self.config.gpus.get(&id) {
+                        gpu.update_config(config, self.config.refresh_rate);
                     }
                 }
             }
@@ -1309,30 +994,14 @@ impl cosmic::Application for Sysmon {
                 if let Some(c) = self.config.gpus.get_mut(&id) {
                     c.stack_values = toggled;
                     self.save_config();
-                } else {
-                    error!("GpuToggleStackLabels: wrong id {id:?}");
+                }
+                if let Some(gpu) = self.gpus.get_mut(&id) {
+                    if let Some(config) = self.config.gpus.get(&id) {
+                        gpu.update_config(config, self.config.refresh_rate);
+                    }
                 }
             }
 
-            Message::GpuSelectGraphType(id, device, kind) => {
-                info!("Message::GpuSelectGraphType({id:?}, {device:?}, {kind:?})");
-                self.update_gpu_config(&id, "GpuSelectGraphType", device, |config, device| {
-                    match device {
-                        DeviceKind::Gpu => config.usage.chart = kind,
-                        DeviceKind::Vram => config.vram.chart = kind,
-                        DeviceKind::GpuTemp => config.temp.chart = kind,
-                        _ => error!("GpuSelectGraphType: wrong kind {device:?}"),
-                    }
-                });
-                if let Some(gpu) = self.gpus.get_mut(&id) {
-                    match device {
-                        DeviceKind::Gpu => gpu.gpu.set_graph_kind(kind),
-                        DeviceKind::Vram => gpu.vram.set_graph_kind(kind),
-                        DeviceKind::GpuTemp => gpu.temp.set_graph_kind(kind),
-                        _ => error!("GpuSelectGraphType: wrong kind {device:?}"),
-                    }
-                }
-            }
             Message::ToggleDisableOnBattery(id, toggled) => {
                 info!("Message::ToggleDisableOnBattery({id:?}, {toggled:?})");
                 if let Some(c) = self.config.gpus.get_mut(&id) {
@@ -1354,6 +1023,9 @@ impl cosmic::Application for Sysmon {
                     .order
                     .swap(order_change.current_index, order_change.new_index);
                 self.save_config();
+            }
+            Message::LaunchSystemMonitor(app) => {
+                system_monitors::launch_desktop_app(app);
             }
             Message::Tip => {
                 Self::open_tipping_page_in_browser();
@@ -1407,8 +1079,9 @@ impl Sysmon {
     }
 
     pub fn sub_page_header<'a, Message: 'static + Clone>(
-        sub_page: Option<&'a str>,
-        parent_page: &'a str,
+        title: Option<String>,
+        subtitle: Option<String>,
+        parent_page: &'static str,
         on_press: Message,
     ) -> Element<'a, Message> {
         let previous_button = widget::button::icon(widget::icon::from_name("go-previous-symbolic"))
@@ -1419,22 +1092,20 @@ impl Sysmon {
             .class(widget::button::ButtonClass::Link)
             .on_press(on_press);
 
-        if let Some(p) = sub_page {
-            let sub_page_header = widget::row::with_capacity(2).push(text::title3(p));
+        let mut header = widget::column::with_capacity(3)
+            .push(previous_button)
+            .spacing(6)
+            .width(iced::Length::Shrink);
 
-            widget::column::with_capacity(2)
-                .push(previous_button)
-                .push(sub_page_header)
-                .spacing(6)
-                .width(iced::Length::Shrink)
-                .into()
-        } else {
-            widget::column::with_capacity(2)
-                .push(previous_button)
-                .spacing(6)
-                .width(iced::Length::Shrink)
-                .into()
+        if let Some(t) = title {
+            header = header.push(text::title3(t));
         }
+
+        if let Some(s) = subtitle {
+            header = header.push(text::heading(s));
+        }
+
+        header.into()
     }
 
     pub fn go_next_with_item<'a, Msg: Clone + 'static>(
@@ -1503,6 +1174,30 @@ impl Sysmon {
                 5,
                 20,
                 Message::ValueSizeChanged,
+            ),
+        );
+
+        let label_size_row = settings::item(
+            fl!("change-label-size"),
+            spin_button(
+                self.config.label_size_default.to_string(),
+                self.config.label_size_default,
+                1,
+                5,
+                20,
+                Message::LabelSizeChanged,
+            ),
+        );
+
+        let combined_value_size_row = settings::item(
+            fl!("change-combined-value-size"),
+            spin_button(
+                self.config.combined_value_size_default.to_string(),
+                self.config.combined_value_size_default,
+                1,
+                5,
+                20,
+                Message::CombinedValueSizeChanged,
             ),
         );
 
@@ -1598,6 +1293,8 @@ impl Sysmon {
             version_row,
             refresh_row,
             value_size_row,
+            label_size_row,
+            combined_value_size_row,
             mono_row,
             spacing_row,
             sysmon_row,
@@ -1607,28 +1304,9 @@ impl Sysmon {
         .into()
     }
 
-    fn push_symbolic_icon(
-        &self,
-        elements: &mut VecDeque<Element<crate::app::Message>>,
-        icon_name: &str,
-        at_start: bool,
-    ) {
-        let size = self.core.applet.suggested_size(true);
-        let icon = widget::icon::from_name(icon_name)
-            .symbolic(true)
-            .size(size.1)
-            .into();
-
-        if at_start {
-            elements.push_front(icon);
-        } else {
-            elements.push_back(icon);
-        }
-    }
-
     fn push_text_label(&self, elements: &mut VecDeque<Element<crate::app::Message>>, label: &str) {
-        let size = self.config.value_size_default;
-        elements.push_back(widget::text::body(label.to_string()).size(size).into());
+        let size = self.config.label_size_default;
+        elements.push_back(widget::text(label.to_string()).size(size).into());
     }
 
     fn simple_ui(&'_ self) -> VecDeque<Element<'_, crate::app::Message>> {
@@ -1644,22 +1322,15 @@ impl Sysmon {
     }
 
     fn cpu_panel_ui(&'_ self, horizontal: bool) -> VecDeque<Element<'_, crate::app::Message>> {
-        let size = self.core.applet.suggested_size(false);
+        let _size = self.core.applet.suggested_size(false);
 
         let mut elements: VecDeque<Element<Message>> = VecDeque::new();
 
-        let cpu_has_content = self.config.cpu.value_visible() || self.config.cpu.chart_visible();
-
-        if self.config.cpu.icon_visible() && cpu_has_content {
-            self.push_symbolic_icon(&mut elements, CPU_ICON, false);
-        }
-
-        if self.config.cpu.label_visible() && cpu_has_content {
-            self.push_text_label(&mut elements, &fl!("label-cpu"));
-        }
+        let cpu_has_content = self.config.cpu.value_visible();
+        let cpu_label = self.config.cpu.label_visible() && cpu_has_content;
+        let cpu_value = self.config.cpu.value_visible();
 
         let cpu_usage = self.cpu.latest_sample();
-        // Format CPU usage based on horizontal layout and sample value
         let formatted_cpu = if self.config.cpu.no_decimals {
             format!("{}%", cpu_usage.round())
         } else if cpu_usage < 10.0 && horizontal {
@@ -1668,32 +1339,28 @@ impl Sysmon {
             format!("{:.1}%", (cpu_usage * 10.0).trunc() / 10.0)
         };
 
-        if self.config.cpu.value_visible() {
+        if cpu_label && cpu_value {
+            let label_size = self.config.label_size_default;
             elements.push_back(
-                self.figure_value(formatted_cpu, self.value_cpu_width)
-                    .into(),
+                Column::with_children(vec![
+                    widget::space::vertical().into(),
+                    widget::text(fl!("label-cpu").to_string()).size(label_size).into(),
+                    self.figure_value(formatted_cpu, self.value_cpu_width, true, Horizontal::Center, None).into(),
+                    widget::space::vertical().into(),
+                ])
+                .align_x(Alignment::Start)
+                .into()
             );
-        }
-
-        let width: u16 = if self.config.cpu.chart == ChartKind::StackedBars {
-            StackedBarSvg::new(
-                self.config.cpu.bar_width,
-                size.0,
-                self.config.cpu.bar_spacing,
-            )
-            .width(self.cpu.core_count())
         } else {
-            size.1
-        };
-
-        if self.config.cpu.chart_visible() {
-            elements.push_back(
-                self.cpu
-                    .chart(size.0, width)
-                    .height(size.0)
-                    .width(width)
-                    .into(),
-            );
+            if cpu_label {
+                self.push_text_label(&mut elements, &fl!("label-cpu"));
+            }
+            if cpu_value {
+                elements.push_back(
+                    self.figure_value(formatted_cpu, self.value_cpu_width, true, Horizontal::Center, None)
+                        .into(),
+                );
+            }
         }
 
         elements
@@ -1703,34 +1370,34 @@ impl Sysmon {
         &'_ self,
         _horizontal: bool,
     ) -> VecDeque<Element<'_, crate::app::Message>> {
-        let size = self.core.applet.suggested_size(false);
+        let _size = self.core.applet.suggested_size(false);
 
         let mut elements: VecDeque<Element<Message>> = VecDeque::new();
 
         if self.cputemp.is_found() {
-            let cputemp_has_content =
-                self.config.cputemp.value_visible() || self.config.cputemp.chart_visible();
+            let cputemp_label = self.config.cputemp.label_visible()
+                && self.config.cputemp.value_visible();
+            let cputemp_value = self.config.cputemp.value_visible();
 
-            if self.config.cputemp.icon_visible() && cputemp_has_content {
-                self.push_symbolic_icon(&mut elements, TEMP_ICON, false);
-            }
-
-            if self.config.cputemp.label_visible() && cputemp_has_content {
-                self.push_text_label(&mut elements, &fl!("label-cpu-temp"));
-            }
-
-            if self.config.cputemp.value_visible() {
-                elements.push_back(self.figure_value(self.cputemp.to_string(), None).into());
-            }
-
-            if self.config.cputemp.chart_visible() {
+            if cputemp_label && cputemp_value {
+                let label_size = self.config.label_size_default;
                 elements.push_back(
-                    self.cputemp
-                        .chart(size.0, size.1)
-                        .height(size.0)
-                        .width(size.1)
-                        .into(),
+                    Column::with_children(vec![
+                        widget::space::vertical().into(),
+                        widget::text(fl!("label-cpu-temp").to_string()).size(label_size).into(),
+                        self.figure_value(self.cputemp.to_string(), None, true, Horizontal::Center, None).into(),
+                        widget::space::vertical().into(),
+                    ])
+                    .align_x(Alignment::Start)
+                    .into()
                 );
+            } else {
+                if cputemp_label {
+                    self.push_text_label(&mut elements, &fl!("label-cpu-temp"));
+                }
+                if cputemp_value {
+                    elements.push_back(self.figure_value(self.cputemp.to_string(), None, true, Horizontal::Center, None).into());
+                }
             }
         }
 
@@ -1738,48 +1405,48 @@ impl Sysmon {
     }
 
     fn memory_panel_ui(&'_ self, horizontal: bool) -> VecDeque<Element<'_, crate::app::Message>> {
-        let size = self.core.applet.suggested_size(false);
+        let _size = self.core.applet.suggested_size(false);
 
         let mut elements: VecDeque<Element<Message>> = VecDeque::new();
 
-        let memory_has_content =
-            self.config.memory.value_visible() || self.config.memory.chart_visible();
+        let memory_label = self.config.memory.label_visible()
+            && self.config.memory.value_visible();
+        let memory_value = self.config.memory.value_visible();
 
-        if self.config.memory.icon_visible() && memory_has_content {
-            self.push_symbolic_icon(&mut elements, RAM_ICON, false);
-        }
-
-        if self.config.memory.label_visible() && memory_has_content {
-            self.push_text_label(&mut elements, &fl!("label-memory"));
-        }
-
-        if self.config.memory.value_visible() {
+        if memory_label && memory_value {
+            let label_size = self.config.label_size_default;
             let formatted_mem = self.memory.to_string(!horizontal);
-            elements.push_back(self.figure_value(formatted_mem, None).into());
-        }
-
-        // Chart section
-        if self.config.memory.chart_visible() {
             elements.push_back(
-                self.memory
-                    .chart(size.0, size.1)
-                    .height(size.0)
-                    .width(size.1)
-                    .into(),
+                Column::with_children(vec![
+                    widget::space::vertical().into(),
+                    widget::text(fl!("label-memory").to_string()).size(label_size).into(),
+                    self.figure_value(formatted_mem, None, true, Horizontal::Center, None).into(),
+                    widget::space::vertical().into(),
+                ])
+                .align_x(Alignment::Start)
+                .into()
             );
+        } else {
+            if memory_label {
+                self.push_text_label(&mut elements, &fl!("label-memory"));
+            }
+            if memory_value {
+                let formatted_mem = self.memory.to_string(!horizontal);
+                elements.push_back(self.figure_value(formatted_mem, None, true, Horizontal::Center, None).into());
+            }
         }
 
         elements
     }
 
     fn network_panel_ui(&'_ self, horizontal: bool) -> VecDeque<Element<'_, crate::app::Message>> {
-        let size = self.core.applet.suggested_size(false);
+        let _size = self.core.applet.suggested_size(false);
 
         let nw_combined = self.config.network1.variant == NetworkVariant::Combined;
         let sample_rate_ms = self.config.refresh_rate;
         let mut elements: VecDeque<Element<Message>> = VecDeque::new();
 
-        let format_value = |text: String| self.figure_value(text, self.value_network_width);
+        let format_value = |text: String| self.figure_value(text, self.value_network_width, true, Horizontal::Left, Some(self.config.combined_value_size_default));
 
         let unit_len = if horizontal {
             network::UnitVariant::Long
@@ -1787,21 +1454,27 @@ impl Sysmon {
             network::UnitVariant::Short
         };
 
-        let network_has_content = self.config.network1.value_visible()
-            || self.config.network1.chart_visible()
-            || (!nw_combined
-                && (self.config.network2.value_visible() || self.config.network2.chart_visible()));
-
-        if self.config.network1.label_visible() && network_has_content {
-            self.push_text_label(&mut elements, &fl!("label-network"));
-        }
-
         if self.config.network1.value_visible() {
             let mut network_values = Vec::new();
+
+            if nw_combined {
+                let mut ul_row = Vec::new();
+
+                if horizontal {
+                    ul_row.push(self.figure_value("↑".to_owned(), None, false, Horizontal::Center, Some(self.config.combined_value_size_default)).into());
+                }
+                ul_row.push(
+                    format_value(self.network1.upload_label(sample_rate_ms, unit_len)).into(),
+                );
+
+                network_values.push(widget::space::vertical().into());
+                network_values.push(Row::from_vec(ul_row).spacing(2).into());
+            }
+
             let mut dl_row = Vec::new();
 
             if horizontal {
-                dl_row.push(self.figure_value("↓".to_owned(), None).into());
+                dl_row.push(self.figure_value("↓".to_owned(), None, false, Horizontal::Center, Some(self.config.combined_value_size_default)).into());
             }
             dl_row.push(
                 format_value(
@@ -1812,37 +1485,13 @@ impl Sysmon {
                 .into(),
             );
 
-            if nw_combined {
-                network_values.push(widget::space::vertical().into());
-            }
-
-            network_values.push(Row::from_vec(dl_row).into());
+            network_values.push(Row::from_vec(dl_row).spacing(2).into());
 
             if nw_combined {
-                let mut ul_row = Vec::new();
-
-                if horizontal {
-                    ul_row.push(self.figure_value("↑".to_owned(), None).into());
-                }
-                ul_row.push(
-                    format_value(self.network1.upload_label(sample_rate_ms, unit_len)).into(),
-                );
-
-                network_values.push(Row::from_vec(ul_row).into());
                 network_values.push(widget::space::vertical().into());
             }
 
             elements.push_back(Column::from_vec(network_values).into());
-        }
-
-        if self.config.network1.chart_visible() {
-            elements.push_back(
-                self.network1
-                    .chart(size.0, size.1)
-                    .height(size.0)
-                    .width(size.1)
-                    .into(),
-            );
         }
 
         if self.config.network2.value_visible() && !nw_combined {
@@ -1851,40 +1500,26 @@ impl Sysmon {
             let mut ul_row = Vec::new();
 
             if horizontal {
-                ul_row.push(self.figure_value("↑".to_owned(), None).into());
+                ul_row.push(self.figure_value("↑".to_owned(), None, false, Horizontal::Center, Some(self.config.combined_value_size_default)).into());
             }
             ul_row.push(format_value(self.network2.upload_label(sample_rate_ms, unit_len)).into());
 
-            network_values.push(Row::from_vec(ul_row).into());
+            network_values.push(Row::from_vec(ul_row).spacing(2).into());
 
             elements.push_back(Column::from_vec(network_values).into());
-        }
-
-        if self.config.network2.chart_visible() && !nw_combined {
-            elements.push_back(
-                self.network2
-                    .chart(size.0, size.1)
-                    .height(size.0)
-                    .width(size.1)
-                    .into(),
-            );
-        }
-
-        if self.config.network1.icon_visible() && network_has_content {
-            self.push_symbolic_icon(&mut elements, NETWORK_ICON, true);
         }
 
         elements
     }
 
     fn disks_panel_ui(&'_ self, horizontal: bool) -> VecDeque<Element<'_, crate::app::Message>> {
-        let size = self.core.applet.suggested_size(false);
+        let _size = self.core.applet.suggested_size(false);
 
         let disks_combined = self.config.disks1.variant == DisksVariant::Combined;
         let sample_rate_ms = self.config.refresh_rate;
         let mut elements: VecDeque<Element<Message>> = VecDeque::new();
 
-        let format_value = |text: String| self.figure_value(text, self.value_disks_width);
+        let format_value = |text: String| self.figure_value(text, self.value_disks_width, true, Horizontal::Left, Some(self.config.combined_value_size_default));
 
         let unit_len = if horizontal {
             disks::UnitVariant::Long
@@ -1892,52 +1527,33 @@ impl Sysmon {
             disks::UnitVariant::Short
         };
 
-        let disks_has_content = self.config.disks1.value_visible()
-            || self.config.disks1.chart_visible()
-            || (!disks_combined
-                && (self.config.disks2.value_visible() || self.config.disks2.chart_visible()));
-
-        if self.config.disks1.label_visible() && disks_has_content {
-            self.push_text_label(&mut elements, &fl!("label-disks"));
-        }
-
         if self.config.disks1.value_visible() {
             let mut disks_values = Vec::new();
-
-            let mut wr_row = Vec::new();
-            if horizontal {
-                wr_row.push(self.figure_value("w".to_owned(), self.value_w_width).into());
-            }
-            wr_row.push(format_value(self.disks1.write_label(sample_rate_ms, unit_len)).into());
-
-            if disks_combined {
-                disks_values.push(widget::space::vertical().into());
-            }
-
-            disks_values.push(Row::from_vec(wr_row).spacing(0).padding(0).into());
 
             if disks_combined {
                 let mut rd_row = Vec::new();
                 if horizontal {
-                    rd_row.push(self.figure_value("r".to_owned(), self.value_w_width).into());
+                    rd_row.push(self.figure_value("r".to_owned(), self.value_w_width, false, Horizontal::Center, Some(self.config.combined_value_size_default)).into());
                 }
                 rd_row.push(format_value(self.disks1.read_label(sample_rate_ms, unit_len)).into());
 
-                disks_values.push(Row::from_vec(rd_row).spacing(0).padding(0).into());
+                disks_values.push(widget::space::vertical().into());
+                disks_values.push(Row::from_vec(rd_row).spacing(2).padding(0).into());
+            }
+
+            let mut wr_row = Vec::new();
+            if horizontal {
+                wr_row.push(self.figure_value("w".to_owned(), self.value_w_width, false, Horizontal::Center, Some(self.config.combined_value_size_default)).into());
+            }
+            wr_row.push(format_value(self.disks1.write_label(sample_rate_ms, unit_len)).into());
+
+            disks_values.push(Row::from_vec(wr_row).spacing(2).padding(0).into());
+
+            if disks_combined {
                 disks_values.push(widget::space::vertical().into());
             }
 
             elements.push_back(Column::from_vec(disks_values).into());
-        }
-
-        if self.config.disks1.chart_visible() {
-            elements.push_back(
-                self.disks1
-                    .chart(size.0, size.1)
-                    .height(size.0)
-                    .width(size.1)
-                    .into(),
-            );
         }
 
         if self.config.disks2.value_visible() && !disks_combined {
@@ -1945,26 +1561,12 @@ impl Sysmon {
 
             let mut rd_row = Vec::new();
             if horizontal {
-                rd_row.push(self.figure_value("r".to_owned(), self.value_w_width).into());
+                rd_row.push(self.figure_value("r".to_owned(), self.value_w_width, false, Horizontal::Center, Some(self.config.combined_value_size_default)).into());
             }
             rd_row.push(format_value(self.disks2.read_label(sample_rate_ms, unit_len)).into());
-            disks_values.push(Row::from_vec(rd_row).spacing(0).padding(0).into());
+            disks_values.push(Row::from_vec(rd_row).spacing(2).padding(0).into());
 
             elements.push_back(Column::from_vec(disks_values).into());
-        }
-
-        if self.config.disks2.chart_visible() && !disks_combined {
-            elements.push_back(
-                self.disks2
-                    .chart(size.0, size.1)
-                    .height(size.0)
-                    .width(size.1)
-                    .into(),
-            );
-        }
-
-        if self.config.disks1.icon_visible() && disks_has_content {
-            self.push_symbolic_icon(&mut elements, DISK_ICON, true);
         }
 
         elements
@@ -1975,17 +1577,14 @@ impl Sysmon {
         gpu: &'a Gpu,
         horizontal: bool,
     ) -> VecDeque<Element<'a, crate::app::Message>> {
-        let size = self.core.applet.suggested_size(false);
+        let _size = self.core.applet.suggested_size(false);
 
         let mut elements: VecDeque<Element<Message>> = VecDeque::new();
 
         if let Some(config) = self.config.gpus.get(&gpu.id()) {
             let gpu_has_content = config.usage.value_visible()
-                || config.usage.chart_visible()
                 || config.temp.value_visible()
-                || config.temp.chart_visible()
-                || config.vram.value_visible()
-                || config.vram.chart_visible();
+                || config.vram.value_visible();
 
             if config.usage.label_visible() && gpu_has_content {
                 self.push_text_label(&mut elements, &fl!("label-gpu"));
@@ -1999,62 +1598,29 @@ impl Sysmon {
             if stacked_values {
                 let gpu_values = vec![
                     widget::space::vertical().into(),
-                    self.figure_value(formatted_gpu, self.value_gpu_width)
+                    self.figure_value(formatted_gpu, self.value_gpu_width, true, Horizontal::Center, None)
                         .into(),
-                    self.figure_value(formatted_vram.clone(), None).into(),
+                    self.figure_value(formatted_vram.clone(), None, true, Horizontal::Center, None).into(),
                     widget::space::vertical().into(),
                 ];
                 elements.push_back(Column::from_vec(gpu_values).into());
             } else if config.usage.value_visible() {
                 elements.push_back(
-                    self.figure_value(formatted_gpu, self.value_gpu_width)
+                    self.figure_value(formatted_gpu, self.value_gpu_width, true, Horizontal::Center, None)
                         .into(),
                 );
             }
 
-            if config.usage.chart_visible() {
-                elements.push_back(gpu.gpu.chart().height(size.0).width(size.1).into());
-            }
             if config.temp.value_visible() {
-                elements.push_back(self.figure_value(gpu.temp.to_string(), None).into());
-            }
-
-            if config.temp.chart_visible() {
-                elements.push_back(gpu.temp.chart().height(size.0).width(size.1).into());
+                elements.push_back(self.figure_value(gpu.temp.to_string(), None, true, Horizontal::Center, None).into());
             }
 
             if config.vram.value_visible() && !stacked_values {
-                elements.push_back(self.figure_value(formatted_vram, None).into());
-            }
-
-            if config.vram.chart_visible() {
-                elements.push_back(gpu.vram.chart().height(size.0).width(size.1).into());
-            }
-        }
-
-        if let Some(config) = self.config.gpus.get(&gpu.id()) {
-            let gpu_has_content = config.usage.value_visible()
-                || config.usage.chart_visible()
-                || config.temp.value_visible()
-                || config.temp.chart_visible()
-                || config.vram.value_visible()
-                || config.vram.chart_visible();
-
-            if config.usage.icon_visible() && gpu_has_content {
-                self.push_symbolic_icon(&mut elements, GPU_ICON, true);
+                elements.push_back(self.figure_value(formatted_vram, None, true, Horizontal::Center, None).into());
             }
         }
 
         elements
-    }
-
-    /// Set to 0 if empty, value if valid, but leave unchanged in value is not valid
-    fn set_color(value: &str, color: &mut u8) {
-        if value.is_empty() {
-            *color = 0;
-        } else if let Ok(num) = value.parse::<u8>() {
-            *color = num;
-        }
     }
 
     fn save_config(&self) {
@@ -2069,55 +1635,6 @@ impl Sysmon {
         ) && let Err(err) = self.config.write_entry(&helper)
         {
             info!("Error writing config {err}");
-        }
-    }
-
-    fn save_colors(&mut self, colors: &ChartColors, kind: DeviceKind, id: Option<String>) {
-        match kind {
-            DeviceKind::Cpu => {
-                *self.config.cpu.colors_mut() = *colors;
-            }
-            DeviceKind::CpuTemp => {
-                *self.config.cputemp.colors_mut() = *colors;
-            }
-            DeviceKind::Memory => {
-                *self.config.memory.colors_mut() = *colors;
-            }
-            DeviceKind::Network(variant) => {
-                let (_, config) = network_select!(self, variant);
-                *config.colors_mut() = *colors;
-            }
-            DeviceKind::Disks(variant) => {
-                let (_, config) = disks_select!(self, variant);
-                *config.colors_mut() = *colors;
-            }
-            DeviceKind::Gpu => {
-                if let Some(id) = id {
-                    if let Some(config) = self.config.gpus.get_mut(&id) {
-                        *config.usage.colors_mut() = *colors;
-                    } else {
-                        error!("No config for selected GPU {id}");
-                    }
-                }
-            }
-            DeviceKind::Vram => {
-                if let Some(id) = id {
-                    if let Some(config) = self.config.gpus.get_mut(&id) {
-                        *config.vram.colors_mut() = *colors;
-                    } else {
-                        error!("No config for selected GPU {id}");
-                    }
-                }
-            }
-            DeviceKind::GpuTemp => {
-                if let Some(id) = id {
-                    if let Some(config) = self.config.gpus.get_mut(&id) {
-                        *config.temp.colors_mut() = *colors;
-                    } else {
-                        error!("No config for selected GPU {id}");
-                    }
-                }
-            }
         }
     }
 
@@ -2201,36 +1718,62 @@ impl Sysmon {
         }
     }
 
-    fn label_font_size(&self) -> u16 {
+    fn label_font_size_for(&self, base: u16) -> u16 {
         match self.core.applet.size {
-            Size::PanelSize(PanelSize::XL) => self.config.value_size_default + 5,
-            Size::PanelSize(PanelSize::L) => self.config.value_size_default + 3,
-            Size::PanelSize(PanelSize::M) => self.config.value_size_default + 2,
-            Size::PanelSize(PanelSize::S) => self.config.value_size_default + 1,
-            Size::PanelSize(PanelSize::XS) => self.config.value_size_default,
-            _ => self.config.value_size_default,
+            Size::PanelSize(PanelSize::XL) => base + 5,
+            Size::PanelSize(PanelSize::L) => base + 3,
+            Size::PanelSize(PanelSize::M) => base + 2,
+            Size::PanelSize(PanelSize::S) => base + 1,
+            Size::PanelSize(PanelSize::XS) => base,
+            _ => base,
         }
+    }
+
+    fn label_font_size(&self) -> u16 {
+        self.label_font_size_for(self.config.value_size_default)
     }
 
     fn figure_value<'a>(
         &self,
         text: String,
         width: Option<f32>,
+        bold: bool,
+        alignment: Horizontal,
+        base_size: Option<u16>,
     ) -> widget::Text<'a, cosmic::Theme> {
-        let size = self.label_font_size();
+        let size = match base_size {
+            Some(base) => self.label_font_size_for(base),
+            None => self.label_font_size(),
+        };
 
         if self.config.monospace_values {
-            widget::text(text).size(size).font(cosmic::font::mono()) // .font(cosmic::font::Font::with_name("Noto Mono"))
+            if bold {
+                widget::text(text).size(size).font(cosmic::iced::Font {
+                    weight: cosmic::iced::font::Weight::Bold,
+                    ..cosmic::font::mono()
+                })
+            } else {
+                widget::text(text).size(size).font(cosmic::font::mono())
+            }
         } else if let Some(w) = width {
-            widget::text(text)
+            let mut t = widget::text(text)
                 .size(size)
                 .width(w)
                 .wrapping(iced::core::text::Wrapping::None)
-                .align_x(Horizontal::Center)
+                .align_x(alignment);
+            if bold {
+                t = t.font(cosmic::font::bold());
+            }
+            t
         } else {
-            widget::text(text)
+            let mut t = widget::text(text)
                 .size(size)
                 .wrapping(iced::core::text::Wrapping::None)
+                .align_x(alignment);
+            if bold {
+                t = t.font(cosmic::font::bold());
+            }
+            t
         }
     }
 
@@ -2320,8 +1863,11 @@ impl Sysmon {
         }
     }
 
-    fn measure_text_width(&mut self, text: &str, attrs: &Attrs) -> Option<f32> {
-        let font_size = self.label_font_size();
+    fn measure_text_width(&mut self, text: &str, attrs: &Attrs, base_size: Option<u16>) -> Option<f32> {
+        let font_size = match base_size {
+            Some(base) => self.label_font_size_for(base),
+            None => self.label_font_size(),
+        };
 
         let metrics = Metrics::new(font_size.into(), font_size.into());
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
@@ -2369,23 +1915,23 @@ impl Sysmon {
 
             let is_horizontal = self.core.applet.is_horizontal();
 
-            self.value_cpu_width = self.measure_text_width("8.88%", &attrs);
+            self.value_cpu_width = self.measure_text_width("8.88%", &attrs, None);
             self.value_gpu_width = self.value_cpu_width;
 
             self.value_network_width = match (self.config.network1.show_bytes, is_horizontal) {
-                (false, false) => self.measure_text_width("8.88M", &attrs),
-                (false, true) => self.measure_text_width("8.88 Mbps", &attrs),
-                (true, false) => self.measure_text_width("8.88M", &attrs),
-                (true, true) => self.measure_text_width("8.88 MB/s", &attrs),
+                (false, false) => self.measure_text_width("8.88M", &attrs, Some(self.config.combined_value_size_default)),
+                (false, true) => self.measure_text_width("8.88 Mbps", &attrs, Some(self.config.combined_value_size_default)),
+                (true, false) => self.measure_text_width("8.88M", &attrs, Some(self.config.combined_value_size_default)),
+                (true, true) => self.measure_text_width("8.88 MB/s", &attrs, Some(self.config.combined_value_size_default)),
             };
 
             self.value_disks_width = if is_horizontal {
-                self.measure_text_width("8.88 MB/s", &attrs)
+                self.measure_text_width("8.88 MB/s", &attrs, Some(self.config.combined_value_size_default))
             } else {
-                self.measure_text_width("8.88M", &attrs)
+                self.measure_text_width("8.88M", &attrs, Some(self.config.combined_value_size_default))
             };
 
-            self.value_w_width = self.measure_text_width("W ", &attrs);
+            self.value_w_width = self.measure_text_width("W ", &attrs, Some(self.config.combined_value_size_default));
         }
     }
 
