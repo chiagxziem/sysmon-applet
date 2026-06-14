@@ -53,7 +53,7 @@ use crate::sensors::memory::Memory;
 use crate::sensors::network::{self, Network};
 use crate::sensors::{Sensor, TempUnit};
 use crate::system_monitors;
-use crate::{config::MinimonConfig, fl};
+use crate::{config::SysmonConfig, fl};
 
 use cosmic::widget::Id as WId;
 
@@ -61,13 +61,13 @@ const NVIDIA_REDETECT_ATTEMPTS: u8 = 5;
 
 static AUTOSIZE_MAIN_ID: LazyLock<WId> = std::sync::LazyLock::new(|| WId::new("autosize-main"));
 
-const ICON: &str = "io.github.cosmic_utils.minimon-applet";
-const CPU_ICON: &str = "io.github.cosmic_utils.minimon-applet-cpu";
-const TEMP_ICON: &str = "io.github.cosmic_utils.minimon-applet-temperature";
-const RAM_ICON: &str = "io.github.cosmic_utils.minimon-applet-ram";
-const GPU_ICON: &str = "io.github.cosmic_utils.minimon-applet-gpu";
-const NETWORK_ICON: &str = "io.github.cosmic_utils.minimon-applet-network";
-const DISK_ICON: &str = "io.github.cosmic_utils.minimon-applet-harddisk";
+const ICON: &str = "io.github.cosmic_utils.sysmon-applet";
+const CPU_ICON: &str = "io.github.cosmic_utils.sysmon-applet-cpu";
+const TEMP_ICON: &str = "io.github.cosmic_utils.sysmon-applet-temperature";
+const RAM_ICON: &str = "io.github.cosmic_utils.sysmon-applet-ram";
+const GPU_ICON: &str = "io.github.cosmic_utils.sysmon-applet-gpu";
+const NETWORK_ICON: &str = "io.github.cosmic_utils.sysmon-applet-network";
+const DISK_ICON: &str = "io.github.cosmic_utils.sysmon-applet-harddisk";
 
 const DEFAULT_MONITOR: &str = "COSMIC System Monitor";
 
@@ -130,7 +130,7 @@ macro_rules! disks_select {
 
 macro_rules! settings_sub_page_heading {
     ($heading:ident) => {
-        Minimon::sub_page_header(Some(&$heading), &SETTINGS_BACK, Message::Settings(None))
+        Sysmon::sub_page_header(Some(&$heading), &SETTINGS_BACK, Message::Settings(None))
     };
 }
 
@@ -145,7 +145,7 @@ pub enum SettingsVariant {
     Gpu(String),
 }
 
-pub struct Minimon {
+pub struct Sysmon {
     /// Application state which is managed by the COSMIC runtime.
     core: Core,
 
@@ -171,7 +171,7 @@ pub struct Minimon {
     colorpicker: ColorPicker,
 
     /// Settings stored on disk, including refresh rate, colors, etc.
-    config: MinimonConfig,
+    config: SysmonConfig,
 
     /// tick can be 250, 500 or 1000, depending on refresh rate modolu tick
     refresh_rate: Arc<AtomicU32>,
@@ -260,7 +260,7 @@ pub enum Message {
     ToggleMemoryIcon(bool),
     ToggleMemoryPercentage(bool),
     ToggleMemoryAllocated(bool),
-    ConfigChanged(Box<MinimonConfig>),
+    ConfigChanged(Box<SysmonConfig>),
     ThemeChanged(Box<cosmic::config::CosmicTk>),
     LaunchSystemMonitor(&'static system_monitors::DesktopApp),
     RefreshRateChanged(f64),
@@ -288,21 +288,21 @@ pub enum Message {
     Tip,
 }
 
-const APP_ID_DOCK: &str = "io.github.cosmic_utils.minimon-applet-dock";
-const APP_ID_PANEL: &str = "io.github.cosmic_utils.minimon-applet-panel";
-const APP_ID_OTHER: &str = "io.github.cosmic_utils.minimon-applet-other";
+const APP_ID_DOCK: &str = "io.github.cosmic_utils.sysmon-applet-dock";
+const APP_ID_PANEL: &str = "io.github.cosmic_utils.sysmon-applet-panel";
+const APP_ID_OTHER: &str = "io.github.cosmic_utils.sysmon-applet-other";
 
-impl cosmic::Application for Minimon {
+impl cosmic::Application for Sysmon {
     type Executor = cosmic::executor::Default;
 
     type Flags = ();
 
     type Message = Message;
 
-    const APP_ID: &'static str = "io.github.cosmic_utils.minimon-applet";
+    const APP_ID: &'static str = "io.github.cosmic_utils.sysmon-applet";
 
     fn init(core: Core, _flags: Self::Flags) -> (Self, Task<Self::Message>) {
-        let is_laptop = Minimon::is_laptop();
+        let is_laptop = Sysmon::is_laptop();
         if is_laptop {
             info!("Is laptop");
         }
@@ -313,7 +313,7 @@ impl cosmic::Application for Minimon {
 
         let is_horizontal = core.applet.is_horizontal();
 
-        let mut app = Minimon {
+        let mut app = Sysmon {
             core,
             cpu: Cpu::new(is_horizontal),
             cputemp: CpuTemp::default(),
@@ -327,7 +327,7 @@ impl cosmic::Application for Minimon {
             popup: None,
             settings_page: None,
             colorpicker: ColorPicker::default(),
-            config: MinimonConfig::default(),
+            config: SysmonConfig::default(),
             refresh_rate: Arc::new(AtomicU32::new(1000)),
             is_laptop,
             on_ac: true,
@@ -341,8 +341,8 @@ impl cosmic::Application for Minimon {
             value_w_width: None,
         };
 
-        let config: MinimonConfig =
-            cosmic::cosmic_config::Config::new(Self::APP_ID, MinimonConfig::VERSION)
+        let config: SysmonConfig =
+            cosmic::cosmic_config::Config::new(Self::APP_ID, SysmonConfig::VERSION)
                 .map(|context| match CosmicConfigEntry::get_entry(&context) {
                     Ok(config) => config,
                     Err((errors, config)) => {
@@ -553,7 +553,7 @@ impl cosmic::Application for Minimon {
                         content = content.push(self.cputemp.settings_ui());
                     }
                     SettingsVariant::Memory => {
-                        content = content.push(Minimon::sub_page_header(
+                        content = content.push(Sysmon::sub_page_header(
                             Some(&SETTINGS_MEMORY_HEADING),
                             &SETTINGS_BACK,
                             Message::Settings(None),
@@ -678,19 +678,19 @@ impl cosmic::Application for Minimon {
                 ));
 
                 let mut sensor_settings = list::ListColumn::new()
-                    .add(Minimon::go_next_with_item(
+                    .add(Sysmon::go_next_with_item(
                         &SETTINGS_GENERAL_HEADING,
                         text::body(""),
                         Message::Settings(Some(SettingsVariant::General)),
                     ))
-                    .add(Minimon::go_next_with_item(
+                    .add(Sysmon::go_next_with_item(
                         &SETTINGS_CPU_CHOICE,
                         cpu,
                         Message::Settings(Some(SettingsVariant::Cpu)),
                     ));
 
                 if self.cputemp.is_found() {
-                    sensor_settings = sensor_settings.add(Minimon::go_next_with_item(
+                    sensor_settings = sensor_settings.add(Sysmon::go_next_with_item(
                         &SETTINGS_CPU_TEMP_CHOICE,
                         cputemp,
                         Message::Settings(Some(SettingsVariant::CpuTemp)),
@@ -698,17 +698,17 @@ impl cosmic::Application for Minimon {
                 }
 
                 sensor_settings = sensor_settings
-                    .add(Minimon::go_next_with_item(
+                    .add(Sysmon::go_next_with_item(
                         &SETTINGS_MEMORY_CHOICE,
                         memory,
                         Message::Settings(Some(SettingsVariant::Memory)),
                     ))
-                    .add(Minimon::go_next_with_item(
+                    .add(Sysmon::go_next_with_item(
                         &SETTINGS_NETWORK_CHOICE,
                         network,
                         Message::Settings(Some(SettingsVariant::Network)),
                     ))
-                    .add(Minimon::go_next_with_item(
+                    .add(Sysmon::go_next_with_item(
                         &SETTINGS_DISKS_CHOICE,
                         disks,
                         Message::Settings(Some(SettingsVariant::Disks)),
@@ -726,7 +726,7 @@ impl cosmic::Application for Minimon {
                             temp
                         ));
 
-                        sensor_settings = sensor_settings.add(Minimon::go_next_with_item(
+                        sensor_settings = sensor_settings.add(Sysmon::go_next_with_item(
                             &SETTINGS_GPU_CHOICE,
                             info,
                             Message::Settings(Some(SettingsVariant::Gpu(key.clone()))),
@@ -1172,25 +1172,25 @@ impl cosmic::Application for Minimon {
 
             Message::ColorTextInputRedChanged(value) => {
                 let mut col = self.colorpicker.sliders();
-                Minimon::set_color(&value, &mut col.red);
+                Sysmon::set_color(&value, &mut col.red);
                 self.colorpicker.update_color(col);
             }
 
             Message::ColorTextInputGreenChanged(value) => {
                 let mut col = self.colorpicker.sliders();
-                Minimon::set_color(&value, &mut col.green);
+                Sysmon::set_color(&value, &mut col.green);
                 self.colorpicker.update_color(col);
             }
 
             Message::ColorTextInputBlueChanged(value) => {
                 let mut col = self.colorpicker.sliders();
-                Minimon::set_color(&value, &mut col.blue);
+                Sysmon::set_color(&value, &mut col.blue);
                 self.colorpicker.update_color(col);
             }
 
             Message::ColorTextInputAlphaChanged(value) => {
                 let mut col = self.colorpicker.sliders();
-                Minimon::set_color(&value, &mut col.alpha);
+                Sysmon::set_color(&value, &mut col.alpha);
                 self.colorpicker.update_color(col);
             }
 
@@ -1363,8 +1363,8 @@ impl cosmic::Application for Minimon {
     }
 }
 
-impl Minimon {
-    fn config_changed(&mut self, config: &MinimonConfig) {
+impl Sysmon {
+    fn config_changed(&mut self, config: &SysmonConfig) {
         info!("Updating state with configuration data");
         self.config = config.clone();
         let rr = self.config.refresh_rate;
@@ -1475,7 +1475,7 @@ impl Minimon {
         )));
         let version_row = row!(
             text::heading(format!(
-                "Minimon version {} for COSMIC.",
+                "Sysmon version {} for COSMIC.",
                 env!("CARGO_PKG_VERSION")
             )),
             space::horizontal(),
@@ -2065,7 +2065,7 @@ impl Minimon {
                 PanelType::Dock => APP_ID_DOCK,
                 PanelType::Other(_) => APP_ID_OTHER,
             },
-            MinimonConfig::VERSION,
+            SysmonConfig::VERSION,
         ) && let Err(err) = self.config.write_entry(&helper)
         {
             info!("Error writing config {err}");

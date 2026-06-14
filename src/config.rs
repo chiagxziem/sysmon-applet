@@ -549,7 +549,7 @@ impl Default for ContentOrder {
 
 #[derive(Debug, Clone, Serialize, Deserialize, CosmicConfigEntry, PartialEq)]
 #[version = 1]
-pub struct MinimonConfig {
+pub struct SysmonConfig {
     pub refresh_rate: u32,
     pub value_size_default: u16,
     pub monospace_values: bool,
@@ -573,7 +573,7 @@ pub struct MinimonConfig {
     pub content_order: ContentOrder,
 }
 
-impl Default for MinimonConfig {
+impl Default for SysmonConfig {
     fn default() -> Self {
         Self {
             refresh_rate: 1000,

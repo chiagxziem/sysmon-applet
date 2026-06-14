@@ -1,0 +1,50 @@
+{
+  "id": "io.github.cosmic_utils.sysmon-applet",
+  "runtime": "org.freedesktop.Platform",
+  "runtime-version": "25.08",
+  "sdk": "org.freedesktop.Sdk",
+  "sdk-extensions": ["org.freedesktop.Sdk.Extension.rust-stable"],
+  "command": "cosmic-ext-applet-sysmon",
+  "finish-args": [
+    "--socket=wayland",
+    "--filesystem=xdg-config/cosmic:rw",
+    "--talk-name=com.system76.CosmicSettingsDaemon",
+    "--filesystem=/sys/class/hwmon:ro",
+    "--filesystem=/sys/class/drm:ro",
+    "--filesystem=/sys/devices:ro",
+    "--device=all"
+  ],
+  "build-options": {
+    "append-path": "/usr/lib/sdk/rust-stable/bin",
+    "env": {
+      "CARGO_HOME": "/run/build/cosmic-ext-applet-sysmon/cargo"
+    }
+  },
+  "modules": [
+    {
+      "name": "cosmic-ext-applet-sysmon",
+      "buildsystem": "simple",
+      "build-commands": [
+        "cargo --offline fetch --manifest-path Cargo.toml --verbose",
+        "cargo --offline build --release --verbose",
+        "install -Dm0755 ./target/release/cosmic-ext-applet-sysmon /app/bin/cosmic-ext-applet-sysmon",
+        "install -Dm0644 ./res/io.github.cosmic_utils.sysmon-applet.desktop /app/share/applications/io.github.cosmic_utils.sysmon-applet.desktop",
+        "install -Dm0644 ./res/io.github.cosmic_utils.sysmon-applet.metainfo.xml /app/share/metainfo/io.github.cosmic_utils.sysmon-applet.metainfo.xml",
+        "install -Dm0644 ./res/icons/apps/io.github.cosmic_utils.sysmon-applet.svg /app/share/icons/hicolor/scalable/apps/io.github.cosmic_utils.sysmon-applet.svg",
+        "install -Dm0644 ./res/icons/apps/io.github.cosmic_utils.sysmon-applet-cpu.svg /app/share/icons/hicolor/scalable/apps/io.github.cosmic_utils.sysmon-applet-cpu.svg",
+        "install -Dm0644 ./res/icons/apps/io.github.cosmic_utils.sysmon-applet-gpu.svg /app/share/icons/hicolor/scalable/apps/io.github.cosmic_utils.sysmon-applet-gpu.svg",
+        "install -Dm0644 ./res/icons/apps/io.github.cosmic_utils.sysmon-applet-harddisk.svg /app/share/icons/hicolor/scalable/apps/io.github.cosmic_utils.sysmon-applet-harddisk.svg",
+        "install -Dm0644 ./res/icons/apps/io.github.cosmic_utils.sysmon-applet-network.svg /app/share/icons/hicolor/scalable/apps/io.github.cosmic_utils.sysmon-applet-network.svg",
+        "install -Dm0644 ./res/icons/apps/io.github.cosmic_utils.sysmon-applet-ram.svg /app/share/icons/hicolor/scalable/apps/io.github.cosmic_utils.sysmon-applet-ram.svg",
+        "install -Dm0644 ./res/icons/apps/io.github.cosmic_utils.sysmon-applet-temperature.svg /app/share/icons/hicolor/scalable/apps/io.github.cosmic_utils.sysmon-applet-temperature.svg"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "./"
+        },
+        "./cargo-sources.json"
+      ]
+    }
+  ]
+}

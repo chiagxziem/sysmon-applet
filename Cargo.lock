@@ -941,7 +941,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cosmic-ext-applet-minimon"
+name = "cosmic-ext-applet-sysmon"
 version = "1.1.1"
 dependencies = [
  "anyhow",

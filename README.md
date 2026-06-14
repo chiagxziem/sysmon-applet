@@ -1,4 +1,4 @@
-# Minimon COSMIC Applet
+# Sysmon COSMIC Applet
 
 A configurable applet for displaying the following:
 * CPU load
@@ -10,7 +10,7 @@ A configurable applet for displaying the following:
 
 Can sit in the panel or Dock. Configurable refresh rate and many display options.
 
-![Image](cosmic-applet-minimon.png)
+![Image](cosmic-applet-sysmon.png)
 
 
 ![Image](https://github.com/user-attachments/assets/5d697c74-f7dc-4213-8516-465c32e5567b)
@@ -28,18 +28,18 @@ Can sit in the panel or Dock. Configurable refresh rate and many display options
 
 ### Flatpak
 
-Depending on how you've installed COSMIC Desktop, Minimon may show up in your app store by default. In COSMIC Store it should be under the "COSMIC Applets" category.
+Depending on how you've installed COSMIC Desktop, Sysmon may show up in your app store by default. In COSMIC Store it should be under the "COSMIC Applets" category.
 
-If Minimon does not show up in your app store, you'll need to add `cosmic-flatpak` as a source:
+If Sysmon does not show up in your app store, you'll need to add `cosmic-flatpak` as a source:
 ```sh
 flatpak remote-add --if-not-exists --user cosmic https://apt.pop-os.org/cosmic/cosmic.flatpakrepo
 ```
 
-Then, proceed to your preferred app store and search for Minimon.
+Then, proceed to your preferred app store and search for Sysmon.
 
 ### From package manager
 
-If on a .deb based distibution download [latest version](https://github.com/cosmic-utils/minimon-applet/releases) and install with the following commands:
+If on a .deb based distibution download [latest version](https://github.com/cosmic-utils/sysmon-applet/releases) and install with the following commands:
 
 ```sh
 sudo dpkg -i <name_of.deb>
@@ -51,7 +51,7 @@ Once it is installed, it should show up in cosmic settings when modifying the ap
 
 It can also be launched as a conventional application from the terminal using:
 ```sh
-flatpak run io.github.cosmic_utils.minimon-applet
+flatpak run io.github.cosmic_utils.sysmon-applet
 ```
 or launched on desktop environments outside of COSMIC. It only functions as an applet on COSMIC Desktop, however.
 
@@ -87,5 +87,5 @@ sudo dnf install <name_of.rpm>
 For checking logs:
 
 ```sh
-journalctl SYSLOG_IDENTIFIER=cosmic-ext-applet-minimon
+journalctl SYSLOG_IDENTIFIER=cosmic-ext-applet-sysmon
 ```

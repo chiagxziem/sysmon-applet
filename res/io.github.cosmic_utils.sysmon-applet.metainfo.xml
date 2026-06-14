@@ -1,22 +1,22 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <component type="desktop-application">
-	<id>io.github.cosmic_utils.minimon-applet</id>
+	<id>io.github.cosmic_utils.sysmon-applet</id>
 	<metadata_license>CC0-1.0</metadata_license>
 	<project_license>GPL-3.0-only</project_license>
 	<project_group>COSMIC</project_group>
 	<update_contact>hyperchaotic@gmail.com</update_contact>
-	<name>Minimon</name>
+	<name>Sysmon</name>
     <developer id="io.github.cosmic_utils">
       <name>hyperchaotic</name>
     </developer>
-    <url type="homepage">https://github.com/cosmic-utils/minimon-applet</url>
+    <url type="homepage">https://github.com/cosmic-utils/sysmon-applet</url>
 	<url
         type="bugtracker"
-    >https://github.com/cosmic-utils/minimon-applet/issues</url>
-	<url type="contribute">https://github.com/cosmic-utils/minimon-applet</url>
+    >https://github.com/cosmic-utils/sysmon-applet/issues</url>
+	<url type="contribute">https://github.com/cosmic-utils/sysmon-applet</url>
 	<url
         type="translate"
-    >https://github.com/cosmic-utils/minimon-applet/tree/main/i18n</url>
+    >https://github.com/cosmic-utils/sysmon-applet/tree/main/i18n</url>
 	<content_rating type="oars-1.1" />
 	<branding>
 		<color type="primary" scheme_preference="light">#fffffe</color>
@@ -91,14 +91,14 @@
             xml:lang="zh-CN"
         >一个适用于 COSMIC 桌面环境的轻量级硬件监控小程序，带有可自定义的界面。显示有关 CPU、GPU、网络、内存和磁盘使用情况的信息。</p>
 	</description>
-	<icon type="stock">io.github.cosmic_utils.minimon-applet.svg</icon>
+	<icon type="stock">io.github.cosmic_utils.sysmon-applet.svg</icon>
 	<launchable
         type="desktop-id"
-    >io.github.cosmic_utils.minimon-applet.desktop</launchable>
+    >io.github.cosmic_utils.sysmon-applet.desktop</launchable>
 	<screenshots>
 		<screenshot type="default">
 			<image
-            >https://raw.githubusercontent.com/cosmic-utils/minimon-applet/main/res/screenshots/main_expanded_styled.png</image>
+            >https://raw.githubusercontent.com/cosmic-utils/sysmon-applet/main/res/screenshots/main_expanded_styled.png</image>
 			<caption
             >A styled instance of the applet with with the window view open.</caption>
 			<caption
@@ -136,7 +136,7 @@
 	</screenshots>
 	<provides>
 		<id>com.system76.CosmicApplet</id>
-        <binary>cosmic-ext-applet-minimon</binary>
+        <binary>cosmic-ext-applet-sysmon</binary>
 	</provides>
 	<categories>
 		<category>Utility</category>
@@ -145,13 +145,13 @@
 		<release version="1.1.1" date="2026-06-02">
 			<url
                 type="details"
-            >https://github.com/cosmic-utils/minimon-applet/releases/tag/v1.1.1</url>
+            >https://github.com/cosmic-utils/sysmon-applet/releases/tag/v1.1.1</url>
 			<description>
 				<p>What's new:</p>
 				<ul>
                     <li>Add retry mechanism for connecting to NVML as first attempt may fail in Flatpak.</li>
                     <li>Default symbolic icons to false.</li>
-                    <li>Change name of binary to cosmic-ext-applet-minimon.</li>
+                    <li>Change name of binary to cosmic-ext-applet-sysmon.</li>
                     <li>Update libcosmic.</li>
 				</ul>
 			</description>
@@ -159,7 +159,7 @@
 		<release version="1.1.0" date="2026-05-06">
 			<url
                 type="details"
-            >https://github.com/cosmic-utils/minimon-applet/releases/tag/v1.1.0</url>
+            >https://github.com/cosmic-utils/sysmon-applet/releases/tag/v1.1.0</url>
 			<description>
 				<p>What's new:</p>
 				<ul>
@@ -175,7 +175,7 @@
 		<release version="1.0.1" date="2026-02-12">
 			<url
                 type="details"
-            >https://github.com/cosmic-utils/minimon-applet/releases/tag/v1.0.1</url>
+            >https://github.com/cosmic-utils/sysmon-applet/releases/tag/v1.0.1</url>
 			<description>
 				<p>What's new:</p>
 				<ul>
@@ -191,7 +191,7 @@
 		<release version="1.0.0" date="2025-12-09">
 			<url
                 type="details"
-            >https://github.com/cosmic-utils/minimon-applet/releases/tag/v1.0.0</url>
+            >https://github.com/cosmic-utils/sysmon-applet/releases/tag/v1.0.0</url>
 			<description>
 				<p>What's new:</p>
 				<ul>
