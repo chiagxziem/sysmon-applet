@@ -1342,11 +1342,9 @@ impl Sysmon {
         if cpu_label && cpu_value {
             let label_size = self.config.label_size_default;
             elements.push_back(
-                Column::with_children(vec![
-                    widget::space::vertical().into(),
+                Column::from_vec(vec![
                     widget::text(fl!("label-cpu").to_string()).size(label_size).into(),
                     self.figure_value(formatted_cpu, self.value_cpu_width, true, Horizontal::Center, None).into(),
-                    widget::space::vertical().into(),
                 ])
                 .align_x(Alignment::Start)
                 .into()
@@ -1382,11 +1380,9 @@ impl Sysmon {
             if cputemp_label && cputemp_value {
                 let label_size = self.config.label_size_default;
                 elements.push_back(
-                    Column::with_children(vec![
-                        widget::space::vertical().into(),
+                    Column::from_vec(vec![
                         widget::text(fl!("label-cpu-temp").to_string()).size(label_size).into(),
                         self.figure_value(self.cputemp.to_string(), None, true, Horizontal::Center, None).into(),
-                        widget::space::vertical().into(),
                     ])
                     .align_x(Alignment::Start)
                     .into()
@@ -1417,11 +1413,9 @@ impl Sysmon {
             let label_size = self.config.label_size_default;
             let formatted_mem = self.memory.to_string(!horizontal);
             elements.push_back(
-                Column::with_children(vec![
-                    widget::space::vertical().into(),
+                Column::from_vec(vec![
                     widget::text(fl!("label-memory").to_string()).size(label_size).into(),
                     self.figure_value(formatted_mem, None, true, Horizontal::Center, None).into(),
-                    widget::space::vertical().into(),
                 ])
                 .align_x(Alignment::Start)
                 .into()
